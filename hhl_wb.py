@@ -12,7 +12,7 @@ from psiqworkbench.qubricks import Matrix
 #################### define problem ###############################
 A = np.array([[3, 1],
               [1, 3]])
-b_vec = np.array([1, 2], dtype=float)
+b_vec = np.array([1, 0], dtype=float)
 
 #################### compute unitaries ############################
 def make_unitary(A, t, power=1):
@@ -201,7 +201,7 @@ qpu.print_state_vector()
 
 #################### ancilla measurement ##########################
 
-ancilla.read()
+
 
 # hhl.barrier(label="$\\psi_4$")
 
@@ -218,10 +218,18 @@ ancilla.read()
 #         clock[j].phase(np.rad2deg(angle), cond=clock[k])
 iqft.uncompute()
 
+for j in range(n_l):
+    U_pow = make_unitary(A, t, -2**j)
+    mat = Matrix()
+    mat.compute(U_pow, b_reg, condition_qubits=clock[j])
+    print(f"\nafter controlled-U^{2**j} (clock[{j}]):")
+    qpu.print_state_vector()
 
+clock.had()
+ancilla.read()
 # Don't call read() — extract directly from state vector
 sv = qpu.pull_state()  # VERIFY: exact method name
-# print("sv:", sv)
+print("sv:", sv)
 # post-select on clock=0, ancilla=1
 # b is LSB, then clock, then ancilla is MSB
 # ancilla=1, clock=00, b=0  →  1000 in binary = index 8
