@@ -12,7 +12,7 @@ from psiqworkbench.qubricks import Matrix
 #################### define problem ###############################
 A = np.array([[3, 1],
               [1, 3]])
-b_vec = np.array([1, 0], dtype=float)
+b_vec = np.array([1, 2], dtype=float)
 
 #################### compute unitaries ############################
 def make_unitary(A, t, power=1):
@@ -20,7 +20,7 @@ def make_unitary(A, t, power=1):
     """Compute e^(i * A * t * power) via direct matrix exponential."""
     return expm(1j * A * t * power)
 
-n_l = 5  # clock qubits — change this to scale QPE precision
+n_l = 4  # clock qubits — change this to scale QPE precision
 
 # t chosen so eigenvalues map to integer bins:
 #   bin width = 2pi / (t * 2^n_l)
@@ -46,9 +46,9 @@ for m1 in range(1, 2**n_l):
 print(f"Best bin assignment: λ_min→m={best_m1}, λ_max→m={best_m2}, ratio error={best_err:.6f}")
 
 # Set t so λ_min maps to best_m1
-t = best_m1 * (2 * pi) / (min(abs(eigvals_true)) * 2**n_l)
+# t = best_m1 * (2 * pi) / (min(abs(eigvals_true)) * 2**n_l)
 # map smallest eigenvalue to bin 1, largest to bin 2 (same relative mapping as before)
-# t = 1 * (2 * pi) / (min(abs(eigvals_true)) * 2**n_l)
+t = 1 * (2 * pi) / (min(abs(eigvals_true)) * 2**n_l)
 
 #################### problem info ##################################
 kappa       = max(abs(eigvals_true)) / min(abs(eigvals_true))
@@ -104,19 +104,48 @@ class SimplePhaseUnitary(Qubrick):
         self.A = A
         super().__init__(**kwargs)
 
-    def _compute(self, psi, ctrl=0):
+    def _compute(self, psi, ctrl=0, compute_iterations=1):
         """Compute the dummy block encoding.
 
         Args:
             psi (Qubits): State register for the computation.
             ctrl (int, Qubits): Register to control the unitary on. Defaults to ``0``.
         """
-        U_pow = make_unitary(self.A, t, power=1)
+        U_pow = make_unitary(self.A, t, power=compute_iterations)
         mat = Matrix()
-        mat.compute(U_pow,psi,ctrl)
+        mat.compute(matrix=U_pow,target_qubits=psi,condition_qubits=ctrl)
 unitary = SimplePhaseUnitary(A=A)
-qpe = QPE(bits_of_precision=n_l, unitary=unitary)
-qpe.compute(b_reg, clock)
+
+
+
+# H on all clock qubits
+clock.had()
+print("\nafter H on clock:")
+qpu.print_state_vector()
+
+# controlled-U^(2^j) for j=0..n_l-1
+for j in range(n_l):
+    U_pow = make_unitary(A, t, 2**j)
+    mat = Matrix()
+    mat.compute(U_pow, b_reg, condition_qubits=clock[j])
+    print(f"\nafter controlled-U^{2**j} (clock[{j}]):")
+    qpu.print_state_vector()
+
+
+
+# inverse QFT
+iqft = QFT(dagger=True)
+iqft.compute(clock)
+
+print("QPE")
+qpu.print_state_vector()
+
+
+print("T")
+print(t)
+
+
+
 # clock.had()
 
 # # Apply controlled-U^(2^j) for j = 0 .. n_l-1
@@ -172,6 +201,8 @@ qpu.print_state_vector()
 
 #################### ancilla measurement ##########################
 
+ancilla.read()
+
 # hhl.barrier(label="$\\psi_4$")
 
 #################### inverse QPE ##################################
@@ -185,12 +216,12 @@ qpu.print_state_vector()
 #     for k in range(j + 1, n_l):
 #         angle = pi / (2 ** (k - j))
 #         clock[j].phase(np.rad2deg(angle), cond=clock[k])
-qpe.uncompute()
+iqft.uncompute()
 
 
 # Don't call read() — extract directly from state vector
 sv = qpu.pull_state()  # VERIFY: exact method name
-print("sv:", sv)
+# print("sv:", sv)
 # post-select on clock=0, ancilla=1
 # b is LSB, then clock, then ancilla is MSB
 # ancilla=1, clock=00, b=0  →  1000 in binary = index 8
