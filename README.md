@@ -27,6 +27,11 @@ python qiskit_main.py
 ```
 you should see an output showing the computed quantum solution, as well as the classically computed solution for comparison.
 
+Also, you can run this to see the result of testing each component of our circuit.
+```
+pytest {library}_tests.py
+```
+
 ### If we had more time...
 
 The HHL algorithm utilizes some key parameters: time evolution t and a scaling factor C. In our implementation, both are set using the eigenvalues of A computed classically. The evolution time t is chosen so that the eigenvalues map exactly to integer bins in the clock register, and C is set to 0.9 · λ_min to ensure the ancilla rotation angles are valid. This works for demonstration purposes but is circular — if you could compute the eigenvalues classically, you are already most of the way to solving the system classically.
